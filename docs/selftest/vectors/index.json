@@ -1,0 +1,104 @@
+{
+ "note": "Expected bytes captured from the vendor native library (libykDataPacket.so getPrintSepImgWithTypeCommand, EM_300DPI_2INCH) running in an emulator.",
+ "cases": [
+  {
+   "name": "white_576x8",
+   "w": 576,
+   "h": 8,
+   "speed": 85,
+   "density": 12,
+   "seqBefore": 0,
+   "outLen": 630
+  },
+  {
+   "name": "black_576x40",
+   "w": 576,
+   "h": 40,
+   "speed": 85,
+   "density": 12,
+   "seqBefore": 5,
+   "outLen": 3014
+  },
+  {
+   "name": "pattern_576x123",
+   "w": 576,
+   "h": 123,
+   "speed": 85,
+   "density": 7,
+   "seqBefore": 18,
+   "outLen": 9200
+  },
+  {
+   "name": "random_rgba_576x37",
+   "w": 576,
+   "h": 37,
+   "speed": 85,
+   "density": 15,
+   "seqBefore": 52,
+   "outLen": 2798
+  },
+  {
+   "name": "gradient_576x16",
+   "w": 576,
+   "h": 16,
+   "speed": 25,
+   "density": 12,
+   "seqBefore": 1,
+   "outLen": 1226
+  },
+  {
+   "name": "narrow_384x50",
+   "w": 384,
+   "h": 50,
+   "speed": 85,
+   "density": 12,
+   "seqBefore": 8,
+   "outLen": 3764
+  },
+  {
+   "name": "odd_301x9",
+   "w": 301,
+   "h": 9,
+   "speed": 85,
+   "density": 12,
+   "seqBefore": 24,
+   "outLen": 712
+  },
+  {
+   "name": "wide_600x10",
+   "w": 600,
+   "h": 10,
+   "speed": 85,
+   "density": 12,
+   "seqBefore": 30,
+   "outLen": 784
+  },
+  {
+   "name": "density16_speed300",
+   "w": 576,
+   "h": 5,
+   "speed": 300,
+   "density": 16,
+   "seqBefore": 36,
+   "outLen": 414
+  },
+  {
+   "name": "density_neg1_speed_neg1",
+   "w": 576,
+   "h": 5,
+   "speed": -1,
+   "density": -1,
+   "seqBefore": 41,
+   "outLen": 414
+  },
+  {
+   "name": "speed0_density0",
+   "w": 576,
+   "h": 3,
+   "speed": 0,
+   "density": 0,
+   "seqBefore": 46,
+   "outLen": 260
+  }
+ ]
+}

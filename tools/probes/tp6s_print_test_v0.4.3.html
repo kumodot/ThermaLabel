@@ -1,0 +1,662 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>TP6-S Print Test</title>
+<style>
+:root{
+  --bg:#f5f5f2;--fg:#1c1c1a;--muted:#6d6d67;--card:#ffffff;--line:#dcdcd5;
+  --accent:#2f6fde;--ok:#1f9d55;--warn:#b7791f;--err:#c0392b;--rx:#7c3aed;--tx:#0e7490;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){
+  :root{--bg:#141413;--fg:#ecece8;--muted:#9a9a93;--card:#1e1e1c;--line:#33332e;
+  --accent:#6c9cff;--ok:#4ade80;--warn:#fbbf24;--err:#f87171;--rx:#c4b5fd;--tx:#67e8f9}
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.45 system-ui,-apple-system,Segoe UI,sans-serif}
+main{max-width:900px;margin:0 auto;padding:20px 16px 40px}
+header{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+h1{font-size:22px;margin:0}
+.badge{font:12px var(--mono);padding:2px 8px;border:1px solid var(--line);border-radius:99px;color:var(--muted)}
+.env{font-size:13px;color:var(--muted);margin-left:auto}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:14px}
+.card h2{font-size:14px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:0 0 10px}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
+label{font-size:13px;color:var(--muted)}
+select,input[type=text]{background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:7px 9px;font:13px system-ui}
+button{background:var(--accent);color:#fff;border:0;border-radius:6px;padding:9px 14px;font:600 14px system-ui;cursor:pointer}
+button.ghost{background:transparent;color:var(--fg);border:1px solid var(--line);font-weight:500}
+button:disabled{opacity:.4;cursor:default}
+.status{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px}
+.pill{border:1px solid var(--line);border-radius:8px;padding:6px 10px}
+.pill b{display:block;font-size:12px;color:var(--muted);font-weight:500}
+.pill span{font:600 15px var(--mono)}
+.preview-wrap{background:#e9e9e4;border:1px solid var(--line);border-radius:6px;padding:10px;overflow:auto}
+#preview{display:block;background:#fff;width:100%;max-width:576px;image-rendering:pixelated}
+#log{background:var(--bg);border:1px solid var(--line);border-radius:6px;height:300px;overflow:auto;padding:8px;font:12px/1.5 var(--mono);white-space:pre-wrap;word-break:break-all}
+.l.ok{color:var(--ok)}.l.warn{color:var(--warn)}.l.err{color:var(--err)}.l.rx{color:var(--rx)}.l.tx{color:var(--tx)}
+.hint{font-size:12px;color:var(--muted);margin:6px 0 0}
+</style>
+</head>
+<body>
+<main>
+<header>
+  <h1>TP6-S Print Test</h1>
+  <span class="badge" id="ver"></span>
+  <span class="env" id="env"></span>
+</header>
+
+<section class="card">
+  <h2>1. Connect</h2>
+  <div class="row" style="margin-bottom:0">
+    <button id="btnConnect">Connect</button>
+    <button id="btnDisconnect" class="ghost" disabled>Disconnect</button>
+    <span class="hint" id="connState" style="margin:0">Not connected</span>
+  </div>
+  <p class="hint">Close the XLife app on the phone first. The printer accepts one connection at a time.</p>
+</section>
+
+<section class="card">
+  <h2>2. Printer status</h2>
+  <div class="status" id="status">
+    <div class="pill"><b>Battery</b><span id="stBattery">-</span></div>
+    <div class="pill"><b>Ready to print</b><span id="stReady">-</span></div>
+    <div class="pill"><b>Paper</b><span id="stPaper">-</span></div>
+    <div class="pill"><b>Cover</b><span id="stCover">-</span></div>
+    <div class="pill"><b>Printing</b><span id="stPrinting">-</span></div>
+    <div class="pill"><b>Charging</b><span id="stCharging">-</span></div>
+    <div class="pill"><b>Density / speed</b><span id="stDensity">-</span></div>
+  </div>
+  <p class="hint">Updates every ~5 s from the printer heartbeat.</p>
+</section>
+
+<section class="card">
+  <h2>3. Test print</h2>
+  <div class="row">
+    <label for="density">Darkness</label>
+    <select id="density">
+      <option value="7">Light</option>
+      <option value="12" selected>Medium</option>
+      <option value="15">Dark</option>
+    </select>
+    <label for="height">Label height</label>
+    <select id="height">
+      <option value="20">20 mm</option>
+      <option value="30" selected>30 mm</option>
+      <option value="40">40 mm</option>
+    </select>
+    <label for="testText">Text</label>
+    <input type="text" id="testText" value="Hello TP6-S">
+  </div>
+  <div class="row">
+    <label for="mode">Transfer</label>
+    <select id="mode">
+      <option value="paced" selected>Paced (20 B, credits, rate limit)</option>
+      <option value="fast">Fast (credits only, may crash)</option>
+      <option value="safe">Safe (wait for each chunk)</option>
+    </select>
+    <label for="chunk">Chunk</label>
+    <select id="chunk">
+      <option value="20" selected>20 B</option>
+      <option value="60">60 B</option>
+      <option value="100">100 B</option>
+      <option value="128">128 B</option>
+      <option value="180">180 B</option>
+    </select>
+    <label for="rate">Rate</label>
+    <select id="rate">
+      <option value="4000">4 KB/s</option>
+      <option value="6000">6 KB/s</option>
+      <option value="10000" selected>10 KB/s</option>
+    </select>
+    <label for="speed">Motor speed</label>
+    <select id="speed">
+      <option value="50">50</option>
+      <option value="85" selected>85 (app default)</option>
+      <option value="120">120</option>
+      <option value="180">180</option>
+    </select>
+    <span class="hint" id="flow" style="margin:0">credits: - | mtu: -</span>
+  </div>
+  <div class="row">
+    <button id="btnPrint" disabled>Print test label</button>
+    <button id="btnFeed" class="ghost" disabled>Feed paper</button>
+  </div>
+  <div class="preview-wrap"><canvas id="preview"></canvas></div>
+  <p class="hint">576 dots wide (48 mm at 300 dpi), exactly what the official app sends.</p>
+</section>
+
+<section class="card">
+  <h2>4. Log</h2>
+  <div class="row">
+    <button id="btnCopy" class="ghost">Copy log</button>
+    <button id="btnClear" class="ghost">Clear</button>
+    <label><input type="checkbox" id="showHeartbeat"> Show heartbeat frames</label>
+  </div>
+  <div id="log"></div>
+</section>
+</main>
+
+<script>
+const APP_VERSION = '0.4.3';
+
+/*
+ * tp6s_protocol.js  v1.0.0
+ *
+ * Vretti TP6-S (BLE name "TP6-S") print protocol, reimplemented from
+ * XLife Pro 3.18.1 (com.printer.printer.pocket.PrinterTwoInch ->
+ * libykDataPacket.so getPrintSepImgWithTypeCommand("EM_300DPI_2INCH", ...)).
+ *
+ * No dependencies. Works in browsers (Web Bluetooth) and Node (for tests).
+ * The image path for this printer uses NO compression, NO checksum and NO crypto:
+ * every message is  64 | cmd | seq | lenLo lenHi | payload | 00 00 00 00 | 9B
+ * (see TP6S_PROTOCOL.md for the full spec and the evidence behind each byte).
+ */
+
+const TP6S = Object.freeze({
+  VERSION: '1.0.0',
+  // GATT (com.yk.helper.YKBleManager.UUID_CUS)
+  SERVICE_UUID: '0000ff00-0000-1000-8000-00805f9b34fb',
+  WRITE_UUID: '0000ff02-0000-1000-8000-00805f9b34fb',   // app writes here (write WITH response)
+  NOTIFY_UUID: '0000ff01-0000-1000-8000-00805f9b34fb',  // app subscribes here (status / replies)
+  AUX_NOTIFY_UUID: '0000ff03-0000-1000-8000-00805f9b34fb', // not used by the app for TP6-S
+  // config "EM_300DPI_2INCH" (getPrinterConfigByName in libykDataPacket.so)
+  DOTS_PER_LINE: 576,        // dotsNum
+  BYTES_PER_LINE: 72,        // 576 / 8
+  LINES_PER_PACKET: 4,       // pkgLength
+  DOTS_PER_MM: 12,           // pointsPerMM (~300 dpi)
+  FEED_DOTS: 172,            // feed (sent after every image)
+  CONFIG_SPEED: 50,          // used only when the given speed is out of range
+  CONFIG_DENSITY: 12,        // used only when the given density is out of range
+  APP_SPEED: 85,             // PrinterTwoInch.r0() for TP6_S
+  // PrintConfig$DensityType.DENSITY_7_12_15 (PrinterUtils.O): level 1 / 2 / 3
+  DENSITY_BY_LEVEL: Object.freeze({ 1: 7, 2: 12, 3: 15 }),
+});
+
+// Message types (CusMsgType values seen in libykDataPacket.so)
+const CMD = Object.freeze({
+  IMAGE_ROWS: 0x00,      // cusGetImgPrintDataWithPaddingOffsetR -> cusPkgMsg(type@0x1abdc8 = 0)
+  FEED: 0x02,            // AstraP1::feedPaper, payload u16 LE dots
+  SET_AUTO_OFF: 0x08,    // getSetAutoOffTimeCommand, payload u8
+  SET_DENSITY: 0x09,     // AstraP1::setDensity, payload u8 (0..15)
+  SET_SPEED: 0x0a,       // AstraP1::setSpeed, payload u8 (0..255)
+  GET_STATUS: 0x10,      // getPrinterStatusCommand
+  GET_FIRMWARE: 0x11,    // getFirmwareVersionCommand
+  GET_SN: 0x12,          // first part of getSnCommand
+  QUERY_17: 0x17,        // getSnCommand also sends 17[10] and 17[01]
+  GET_PAPER_TYPE: 0x72,  // getPaperTypeCommand, payload [01]
+  BLE_TOKEN: 0x80,       // getBleTokenBytesCommand, payload [01] (sent right after MTU exchange)
+  STATUS_REPORT: 0xff,   // printer -> host heartbeat (every ~5 s on FF01)
+});
+
+// ---------------------------------------------------------------------------
+// Sequence counter: libykDataPacket keeps ONE global 6-bit counter (byte at
+// .bss 0x1abdcc) that is pre-incremented for every message it builds:
+// seq = (seq + 1) & 0x3f. The first message after load has seq = 1.
+// ---------------------------------------------------------------------------
+let _seq = 0;
+function setSequence(n) { _seq = n & 0x3f; }
+function getSequence() { return _seq; }
+function nextSeq() { _seq = (_seq + 1) & 0x3f; return _seq; }
+
+/** Build one framed message (cusPkgMsg @0xe1f20). */
+function packMsg(cmd, payload = new Uint8Array(0), seq = nextSeq()) {
+  const p = payload instanceof Uint8Array ? payload : Uint8Array.from(payload);
+  const len = p.length & 0xffff;
+  const out = new Uint8Array(len + 10);
+  out[0] = 0x64;
+  out[1] = cmd & 0xff;
+  out[2] = seq & 0x3f;
+  out[3] = len & 0xff;
+  out[4] = len >> 8;
+  out.set(p.subarray(0, len), 5);
+  // out[5+len .. 8+len] = 00 00 00 00 (checksum slot, left zero by the app)
+  out[len + 9] = 0x9b;
+  return out;
+}
+
+function concat(list) {
+  let n = 0;
+  for (const a of list) n += a.length;
+  const out = new Uint8Array(n);
+  let o = 0;
+  for (const a of list) { out.set(a, o); o += a.length; }
+  return out;
+}
+
+// --- simple commands (byte-identical to the native getters) ---------------
+const cmdBleToken = () => packMsg(CMD.BLE_TOKEN, [0x01]);
+const cmdGetSn = () => concat([
+  packMsg(CMD.GET_SN), packMsg(CMD.QUERY_17, [0x10]), packMsg(CMD.QUERY_17, [0x01])]);
+const cmdGetFirmwareVersion = () => packMsg(CMD.GET_FIRMWARE);
+const cmdGetPrinterStatus = () => packMsg(CMD.GET_STATUS);
+const cmdGetPaperType = () => packMsg(CMD.GET_PAPER_TYPE, [0x01]);
+const cmdSetAutoOffTime = (code) => packMsg(CMD.SET_AUTO_OFF, [code & 0xff]);
+const cmdSetSpeed = (v) => packMsg(CMD.SET_SPEED, [v & 0xff]);
+const cmdSetDensity = (v) => packMsg(CMD.SET_DENSITY, [v & 0xff]);
+const cmdFeed = (dots) => packMsg(CMD.FEED, [dots & 0xff, (dots >> 8) & 0xff]);
+
+/**
+ * Messages the app writes right after connecting (PrinterManager):
+ *   onMtuChanged -> YkBleDataSplitManager.setCurMtu -> getBleTokenBytesCommand
+ *   +100 ms  -> PrinterCus.t()  = getSnCommand (3 messages)
+ *   +200 ms  -> PrinterCus.w()  = getFirmwareVersionCommand
+ * Returned as [{delayMs, bytes}] relative to the moment notifications + MTU are ready.
+ */
+function buildConnectSequence() {
+  return [
+    { delayMs: 0, bytes: cmdBleToken() },
+    { delayMs: 100, bytes: cmdGetSn() },
+    { delayMs: 200, bytes: cmdGetFirmwareVersion() },
+  ];
+}
+
+// --- image -----------------------------------------------------------------
+
+/**
+ * Convert RGBA pixels to packed 1-bpp rows exactly like the native
+ * cusConvertImgDataWithPadding (@0xe21f0):
+ *   gray = (R*171>>9) + (G*171>>9) + (B*171>>9);  black when gray < 128.
+ * Alpha is ignored (a transparent pixel with RGB 0,0,0 prints black!).
+ * Output: MSB-first, 1 = black, ceil(w/8) bytes per row.
+ */
+function rgbaToMonoRows(rgba, width, height) {
+  const bpr = (width + 7) >> 3;
+  const out = new Uint8Array(bpr * height);
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const i = (y * width + x) * 4;
+      const g = ((rgba[i] * 171) >> 9) + ((rgba[i + 1] * 171) >> 9) + ((rgba[i + 2] * 171) >> 9);
+      if (g < 128) out[y * bpr + (x >> 3)] |= 0x80 >> (x & 7);
+    }
+  }
+  return out;
+}
+
+/**
+ * Place packed rows (ceil(widthDots/8) bytes per row, MSB-first, 1=black) into
+ * 576-dot printer lines. Like the app: RIGHT-aligned (left padding = 576 - width);
+ * if wider than 576 the LEFT part is cropped. The app always scales the bitmap to
+ * 576 px wide first (YkUtil.scalingBitmap), so normally width == 576.
+ */
+function toPrinterLines(mono, widthDots, heightDots) {
+  const W = TP6S.DOTS_PER_LINE, BPL = TP6S.BYTES_PER_LINE;
+  const srcBpr = (widthDots + 7) >> 3;
+  const out = new Uint8Array(BPL * heightDots);
+  const pad = W - widthDots;
+  if (pad === 0 && srcBpr === BPL) { out.set(mono.subarray(0, out.length)); return out; }
+  for (let y = 0; y < heightDots; y++) {
+    for (let x = 0; x < W; x++) {
+      const sx = x - pad;
+      if (sx < 0 || sx >= widthDots) continue;
+      if (mono[y * srcBpr + (sx >> 3)] & (0x80 >> (sx & 7))) out[y * BPL + (x >> 3)] |= 0x80 >> (x & 7);
+    }
+  }
+  return out;
+}
+
+/**
+ * Build the complete print job for one label/page, byte-identical to
+ * YkDataPacket.getPrintImgWithTypeCommand("EM_300DPI_2INCH", bmp, 85, density, isFirst, isLast, false, 0, 0, 576, true).
+ *
+ * @param {Uint8Array} mono   packed rows, ceil(widthDots/8) bytes each, MSB first, 1 = black
+ * @param {number} widthDots  normally 576
+ * @param {number} heightDots number of rows (any value, no padding to 4)
+ * @param {object} opts {density (0..15, default 12), speed (10..255, default 85),
+ *                       feedDots (default 172), isFirst, isLast (accepted, no effect
+ *                       for this printer config)}
+ * @returns {{packets: Uint8Array[], bytes: Uint8Array}}
+ */
+function buildTp6sPrintJob(mono, widthDots, heightDots, opts = {}) {
+  let speed = opts.speed ?? TP6S.APP_SPEED;
+  let density = opts.density ?? TP6S.CONFIG_DENSITY;
+  const feed = opts.feedDots ?? TP6S.FEED_DOTS;
+  // native (pkgPrintLabelWithConfig @0xd2008): a speed outside 10..255 or a density
+  // outside 0..15 is replaced by the config default (setSpeed 50 / setDensity 12)
+  if (!(speed >= 10 && speed <= 255)) speed = TP6S.CONFIG_SPEED;
+  if (!(density >= 0 && density <= 15)) density = TP6S.CONFIG_DENSITY;
+
+  const packets = [];
+  packets.push(cmdSetSpeed(speed));
+  packets.push(cmdSetDensity(density));
+  const lines = toPrinterLines(mono, widthDots, heightDots);
+  const chunk = TP6S.LINES_PER_PACKET * TP6S.BYTES_PER_LINE; // 288 bytes
+  for (let o = 0; o < lines.length; o += chunk) {
+    packets.push(packMsg(CMD.IMAGE_ROWS, lines.subarray(o, Math.min(o + chunk, lines.length))));
+  }
+  if (feed >= 1) packets.push(cmdFeed(feed));
+  return { packets, bytes: concat(packets) };
+}
+
+/** Convenience: RGBA (e.g. canvas ImageData.data) straight to a job. */
+function buildTp6sPrintJobFromRgba(rgba, width, height, opts = {}) {
+  return buildTp6sPrintJob(rgbaToMonoRows(rgba, width, height), width, height, opts);
+}
+
+// --- incoming messages -----------------------------------------------------
+
+/** Checksum the printer puts in its own messages (cusCalChecksum @0xe0a90):
+ *  0x12345678 + sum(bytes[0 .. len-6]) + 0x9B, stored LE in bytes[len-5 .. len-2]. */
+function calcChecksum(frame) {
+  let s = 0x12345678;
+  for (let i = 0; i < frame.length - 5; i++) s += frame[i];
+  s += frame[frame.length - 1];
+  return s >>> 0;
+}
+
+/** Split a notification buffer into frames (64 .. 9B with valid length). */
+function splitFrames(buf) {
+  const frames = [];
+  let i = 0;
+  while (i + 10 <= buf.length) {
+    if (buf[i] !== 0x64) { i++; continue; }
+    const len = buf[i + 3] | (buf[i + 4] << 8);
+    const end = i + len + 10;
+    if (end > buf.length) break;
+    if (buf[end - 1] === 0x9b) { frames.push(buf.subarray(i, end)); i = end; } else i++;
+  }
+  return frames;
+}
+
+/**
+ * Decode one printer frame. For the 18-byte status heartbeat (cmd 0xFF, payload 8 bytes)
+ * the field layout follows cusUnpkgPrinterStatus (@0xe8ce4) + YkPrinterInfo field names.
+ */
+function parseFrame(f) {
+  const len = f[3] | (f[4] << 8);
+  const payload = f.subarray(5, 5 + len);
+  const stored = (f[5 + len] | (f[6 + len] << 8) | (f[7 + len] << 16) | (f[8 + len] << 24)) >>> 0;
+  const res = { cmd: f[1], seq: f[2], payload, checksumOk: stored === calcChecksum(f) };
+  if (f.length === 17 || f.length === 18) {
+    const raw = (payload[0] | (payload[1] << 8)) << 16 >> 16; // int16
+    const flags = payload[2] | (payload[3] << 8);
+    const b = (n) => !!(flags & (1 << n));
+    res.status = {
+      voltageRaw: raw,
+      voltage: raw * 3340 * 280 / 409600, // float the app stores in YkPrinterInfo.voltage
+      isTurnOn: b(0), isCutterReady: b(0), isBtConnected: b(1), isCharging: b(2),
+      isPrinting: b(3), isSuspent: b(4), isUsbBusy: b(5), isBtBusy: b(6),
+      isMotorOutSync: b(7), isUncap: b(8), isLowBattery: b(9), isOverHeating: b(10),
+      isPaperOut: b(11), isAllowPrint: b(12), isValidPaper: b(13), isUpgrading: b(14),
+      isUsbConnected: b(15), isPaperLoaded: b(15),
+      density: payload[4], autoOffTime: payload[5], speed: payload[6],
+      batteryPercentage: f.length === 18 ? payload[7] : null,
+    };
+  }
+  return res;
+}
+
+// --- Web Bluetooth transport -----------------------------------------------
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * Write a byte stream like YkBleDataSplitManager does: cut it into chunks of
+ * (MTU - 3) bytes regardless of message boundaries and write them one after the
+ * other WITH response (BluetoothGatt.writeCharacteristic, default write type;
+ * the next chunk only goes after onCharacteristicWrite). The app asks for MTU 512;
+ * Web Bluetooth cannot choose the MTU, so keep chunks small (printer reports 192
+ * on FF03 -> 189 max; 180 is a safe default).
+ */
+async function writeStream(characteristic, bytes, { chunkSize = 180, withResponse = true, gapMs = 0 } = {}) {
+  for (let o = 0; o < bytes.length; o += chunkSize) {
+    const part = bytes.slice(o, Math.min(o + chunkSize, bytes.length));
+    if (withResponse && characteristic.writeValueWithResponse) await characteristic.writeValueWithResponse(part);
+    else if (!withResponse && characteristic.writeValueWithoutResponse) await characteristic.writeValueWithoutResponse(part);
+    else await characteristic.writeValue(part);
+    if (gapMs) await sleep(gapMs);
+  }
+}
+
+/** Connect + replicate the app's connect-time traffic. Returns {device, server, write, notify}. */
+async function connectTp6s({ onFrame, onStatus, filters } = {}) {
+  const device = await navigator.bluetooth.requestDevice({
+    filters: filters ?? [{ namePrefix: 'TP6' }],
+    optionalServices: [TP6S.SERVICE_UUID],
+  });
+  const server = await device.gatt.connect();
+  const svc = await server.getPrimaryService(TP6S.SERVICE_UUID);
+  const write = await svc.getCharacteristic(TP6S.WRITE_UUID);
+  const notify = await svc.getCharacteristic(TP6S.NOTIFY_UUID);
+  let pending = new Uint8Array(0);
+  notify.addEventListener('characteristicvaluechanged', (ev) => {
+    const v = new Uint8Array(ev.target.value.buffer.slice(0));
+    const buf = new Uint8Array(pending.length + v.length);
+    buf.set(pending); buf.set(v, pending.length);
+    const frames = splitFrames(buf);
+    let used = 0;
+    for (const f of frames) {
+      used = f.byteOffset - buf.byteOffset + f.length;
+      const p = parseFrame(f);
+      onFrame?.(p);
+      if (p.status) onStatus?.(p.status);
+    }
+    pending = buf.slice(used);
+    if (pending.length > 4096) pending = new Uint8Array(0);
+  });
+  await notify.startNotifications();
+  let t = 0;
+  for (const step of buildConnectSequence()) {
+    if (step.delayMs > t) { await sleep(step.delayMs - t); t = step.delayMs; }
+    await writeStream(write, step.bytes);
+  }
+  return { device, server, write, notify };
+}
+
+/** Print one page. mono = packed rows (576 wide normally). */
+async function printTp6s(conn, mono, widthDots, heightDots, opts = {}) {
+  const job = buildTp6sPrintJob(mono, widthDots, heightDots, opts);
+  await writeStream(conn.write, job.bytes, opts);
+  return job;
+}
+
+if (typeof globalThis !== 'undefined') {
+  globalThis.TP6SProtocol = {
+    TP6S, CMD, packMsg, setSequence, getSequence, cmdBleToken, cmdGetSn, cmdGetFirmwareVersion,
+    cmdGetPrinterStatus, cmdGetPaperType, cmdSetAutoOffTime, cmdSetSpeed, cmdSetDensity, cmdFeed,
+    buildConnectSequence, rgbaToMonoRows, toPrinterLines, buildTp6sPrintJob, buildTp6sPrintJobFromRgba,
+    calcChecksum, splitFrames, parseFrame, writeStream, connectTp6s, printTp6s,
+  };
+}
+
+
+const $ = s => document.querySelector(s);
+const logEl = $('#log');
+let conn = null, busy = false;
+
+// FF03 = flow control from the printer's BLE chip: "01 NN" adds NN credits, "02 LO HI" = MTU.
+// One credit per packet written without response. Lets us stream fast without overflowing it.
+const flow = { credits: 0, mtu: 0, seen: false };
+function updateFlow() { $('#flow').textContent = `credits: ${flow.seen ? flow.credits : '-'} | mtu: ${flow.mtu || '-'}`; }
+
+async function setupFlowControl() {
+  flow.credits = 0; flow.mtu = 0; flow.seen = false; updateFlow();
+  try {
+    const svc = await conn.server.getPrimaryService(TP6S.SERVICE_UUID);
+    const aux = await svc.getCharacteristic(TP6S.AUX_NOTIFY_UUID);
+    aux.oncharacteristicvaluechanged = ev => {
+      const b = new Uint8Array(ev.target.value.buffer.slice(0));
+      if (b[0] === 0x01 && b.length >= 2) { flow.credits += b[1]; flow.seen = true; }
+      else if (b[0] === 0x02 && b.length >= 3) { flow.mtu = b[1] | (b[2] << 8); }
+      updateFlow();
+    };
+    await aux.startNotifications();
+  } catch (e) {
+    log('Flow control (FF03) not available: ' + e.message, 'warn');
+  }
+}
+
+async function takeCredit() {
+  const t0 = performance.now();
+  while (flow.credits <= 0) {
+    if (performance.now() - t0 > 1000) { flow.credits = 1; log('No credit for 1 s, forcing one', 'warn'); break; }
+    await new Promise(r => setTimeout(r, 2));
+  }
+  flow.credits--;
+}
+
+// Fast path: write without response, gated by FF03 credits, chunk = MTU - 3.
+async function writeFast(ch, bytes, size) {
+  for (let o = 0; o < bytes.length; o += size) {
+    await takeCredit();
+    await ch.writeValueWithoutResponse(bytes.slice(o, Math.min(o + size, bytes.length)));
+  }
+  updateFlow();
+}
+
+// Paced path: 20-byte packets (the BLE chip's no-response limit), FF03 credits, and a byte-rate cap.
+// Found by testing: bigger packets or unthrottled bursts make the printer power off.
+async function writePaced(ch, bytes, rate) {
+  const size = 20;
+  const t0 = performance.now();
+  let n = 0;
+  for (let o = 0; o < bytes.length; o += size) {
+    await takeCredit();
+    await ch.writeValueWithoutResponse(bytes.slice(o, Math.min(o + size, bytes.length)));
+    n++;
+    const target = t0 + n * size * 1000 / rate;
+    const wait = target - performance.now();
+    if (wait > 1) await new Promise(r => setTimeout(r, wait));
+  }
+  updateFlow();
+}
+
+$('#ver').textContent = 'v' + APP_VERSION;
+document.title = 'TP6-S Print Test v' + APP_VERSION;
+
+function ts() { const d = new Date(); return d.toTimeString().slice(0, 8) + '.' + String(d.getMilliseconds()).padStart(3, '0'); }
+function log(msg, cls = '') {
+  const el = document.createElement('div');
+  el.className = 'l ' + cls;
+  el.textContent = `[${ts()}] ${msg}`;
+  logEl.appendChild(el);
+  logEl.scrollTop = logEl.scrollHeight;
+}
+const hex = a => [...a].map(b => b.toString(16).padStart(2, '0')).join(' ');
+const yn = v => v ? 'yes' : 'no';
+
+function setConnected(on) {
+  $('#btnConnect').disabled = on;
+  $('#btnDisconnect').disabled = !on;
+  $('#btnPrint').disabled = !on;
+  $('#btnFeed').disabled = !on;
+  $('#connState').textContent = on ? `Connected to ${conn?.device?.name || 'printer'}` : 'Not connected';
+}
+
+function showStatus(s) {
+  $('#stBattery').textContent = s.batteryPercentage != null ? s.batteryPercentage + '%' : '-';
+  $('#stReady').textContent = yn(s.isAllowPrint);
+  $('#stPaper').textContent = s.isPaperOut ? 'OUT' : 'ok';
+  $('#stCover').textContent = s.isUncap ? 'OPEN' : 'closed';
+  $('#stPrinting').textContent = yn(s.isPrinting);
+  $('#stCharging').textContent = yn(s.isCharging);
+  $('#stDensity').textContent = `${s.density} / ${s.speed}`;
+  if (s.isOverHeating) log('Printer reports overheating', 'warn');
+  if (s.isLowBattery) log('Printer reports low battery', 'warn');
+}
+
+// ---------- Test label ----------
+function buildLabel() {
+  const W = TP6S.DOTS_PER_LINE;               // 576
+  const H = parseInt($('#height').value) * TP6S.DOTS_PER_MM;
+  const cv = $('#preview');
+  cv.width = W; cv.height = H;
+  const g = cv.getContext('2d');
+  g.fillStyle = '#fff'; g.fillRect(0, 0, W, H);
+  g.fillStyle = '#000';
+  const t = 6;
+  g.fillRect(0, 0, W, t); g.fillRect(0, H - t, W, t);
+  g.fillRect(0, 0, t, H); g.fillRect(W - t, 0, t, H);
+  g.textBaseline = 'middle';
+  let size = Math.round(H * 0.32);
+  const text = $('#testText').value || 'TP6-S';
+  g.font = `bold ${size}px system-ui, sans-serif`;
+  while (g.measureText(text).width > W - 40 && size > 12) { size -= 2; g.font = `bold ${size}px system-ui, sans-serif`; }
+  g.fillText(text, 20, H * 0.38);
+  g.font = `${Math.round(H * 0.13)}px system-ui, sans-serif`;
+  g.fillText(`${new Date().toLocaleDateString()}  |  v${APP_VERSION}`, 20, H * 0.75);
+  // ruler: tick every 5 mm
+  for (let x = 0; x < W; x += 5 * TP6S.DOTS_PER_MM) g.fillRect(x, H - 22, 3, 16);
+  return { cv, W, H };
+}
+
+// ---------- BLE ----------
+async function connect() {
+  if (!navigator.bluetooth) { log('Web Bluetooth not available. Use Chrome or Edge.', 'err'); return; }
+  try {
+    setSequence(0);
+    log('Opening device chooser...');
+    conn = await connectTp6s({
+      filters: [{ namePrefix: 'TP6' }, { namePrefix: 'eTP6' }],
+      onFrame: f => {
+        if (f.cmd === CMD.STATUS_REPORT && !$('#showHeartbeat').checked) return;
+        log(`RX cmd 0x${f.cmd.toString(16).padStart(2, '0')} seq ${f.seq} payload [${hex(f.payload)}] checksum ${f.checksumOk ? 'ok' : 'BAD'}`, 'rx');
+      },
+      onStatus: showStatus,
+    });
+    conn.device.ongattserverdisconnected = () => { log('Disconnected', 'warn'); conn = null; setConnected(false); };
+    setConnected(true);
+    log(`Connected to "${conn.device.name}", handshake sent (token, serial, firmware)`, 'ok');
+    await setupFlowControl();
+  } catch (e) {
+    log('Connect failed: ' + e.message, 'err');
+  }
+}
+
+async function printLabel() {
+  if (!conn || busy) return;
+  busy = true; $('#btnPrint').disabled = true;
+  try {
+    const { cv, W, H } = buildLabel();
+    const rgba = cv.getContext('2d').getImageData(0, 0, W, H).data;
+    const density = parseInt($('#density').value);
+    const speed = parseInt($('#speed').value);
+    const mode = $('#mode').value;
+    const job = buildTp6sPrintJobFromRgba(rgba, W, H, { density, speed });
+    const chunk = parseInt($('#chunk').value);
+    log(`Job: ${W}x${H} dots, ${job.packets.length} messages, ${job.bytes.length} bytes, density ${density}, speed ${speed}, ${mode} mode, chunk ${chunk}`);
+    const t0 = performance.now();
+    if (mode === 'paced' && flow.seen) await writePaced(conn.write, job.bytes, parseInt($('#rate').value));
+    else if (mode === 'fast' && flow.seen) await writeFast(conn.write, job.bytes, chunk);
+    else {
+      if (mode !== 'safe') log('No FF03 credits seen yet, using safe mode', 'warn');
+      await writeStream(conn.write, job.bytes, { chunkSize: chunk, withResponse: true });
+    }
+    log(`Sent in ${Math.round(performance.now() - t0)} ms`, 'tx');
+  } catch (e) {
+    log('Print failed: ' + e.message, 'err');
+  } finally {
+    busy = false; $('#btnPrint').disabled = !conn;
+  }
+}
+
+async function feed() {
+  if (!conn || busy) return;
+  try { await writeStream(conn.write, cmdFeed(TP6S.FEED_DOTS)); log('Feed sent', 'tx'); }
+  catch (e) { log('Feed failed: ' + e.message, 'err'); }
+}
+
+(function init() {
+  const ok = !!navigator.bluetooth && window.isSecureContext;
+  $('#env').textContent = ok ? 'Web Bluetooth available' : 'Web Bluetooth NOT available (use Chrome or Edge)';
+  $('#env').style.color = ok ? 'var(--ok)' : 'var(--err)';
+  log(`TP6-S Print Test v${APP_VERSION} (protocol ${TP6S.VERSION})`);
+  buildLabel();
+})();
+
+$('#btnConnect').onclick = connect;
+$('#btnDisconnect').onclick = () => conn?.device?.gatt?.connected && conn.device.gatt.disconnect();
+$('#btnPrint').onclick = printLabel;
+$('#btnFeed').onclick = feed;
+$('#height').onchange = buildLabel;
+$('#testText').oninput = buildLabel;
+$('#btnCopy').onclick = async () => {
+  try { await navigator.clipboard.writeText(logEl.innerText); log('Log copied', 'ok'); }
+  catch { log('Copy failed, select the text manually', 'warn'); }
+};
+$('#btnClear').onclick = () => { logEl.innerHTML = ''; };
+</script>
+</body>
+</html>

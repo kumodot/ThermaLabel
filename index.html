@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ThermaLabel</title>
+<style>body{margin:0;font:15px system-ui,sans-serif;background:#f4f1ea;color:#1d1b17;display:grid;place-items:center;min-height:100vh}a{color:#d9480f}</style>
+</head>
+<body>
+<p>Loading ThermaLabel... <a id="go" href="ThermaLabel_v0.6.0.html">open it here</a></p>
+<script>
+// Always open the current build: version.json is fetched without cache, the fallback is the last known entry.
+(async () => {
+  let entry = document.getElementById('go').getAttribute('href');
+  if (location.protocol !== 'file:') try {
+    const r = await fetch('version.json', { cache: 'no-store' });
+    if (r.ok) entry = (await r.json()).entry || entry;
+  } catch (e) { /* file:// or offline: use the fallback */ }
+  location.replace(entry + location.hash);
+})();
+</script>
+</body>
+</html>

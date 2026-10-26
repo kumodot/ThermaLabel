@@ -1,0 +1,556 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>BLE Printer Probe</title>
+<style>
+:root{
+  --bg:#f5f5f2;--fg:#1c1c1a;--muted:#6d6d67;--card:#ffffff;--line:#dcdcd5;
+  --accent:#2f6fde;--ok:#1f9d55;--warn:#b7791f;--err:#c0392b;--rx:#7c3aed;--tx:#0e7490;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){
+  :root{--bg:#141413;--fg:#ecece8;--muted:#9a9a93;--card:#1e1e1c;--line:#33332e;
+  --accent:#6c9cff;--ok:#4ade80;--warn:#fbbf24;--err:#f87171;--rx:#c4b5fd;--tx:#67e8f9}
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.45 system-ui,-apple-system,Segoe UI,sans-serif}
+main{max-width:980px;margin:0 auto;padding:20px 16px 40px}
+header{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+h1{font-size:22px;margin:0}
+.badge{font:12px var(--mono);padding:2px 8px;border:1px solid var(--line);border-radius:99px;color:var(--muted)}
+.env{font-size:13px;color:var(--muted);margin-left:auto}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:14px}
+.card h2{font-size:14px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:0 0 10px}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
+label{font-size:13px;color:var(--muted)}
+input[type=text],select,textarea{background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:7px 9px;font:13px var(--mono)}
+textarea{width:100%;min-height:44px;resize:vertical}
+input[type=number]{width:80px;background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:6px}
+button{background:var(--accent);color:#fff;border:0;border-radius:6px;padding:8px 13px;font:600 13px system-ui;cursor:pointer}
+button.ghost{background:transparent;color:var(--fg);border:1px solid var(--line)}
+button:disabled{opacity:.4;cursor:default}
+.presets button{background:transparent;color:var(--fg);border:1px solid var(--line);font-weight:500}
+.presets button:hover:not(:disabled){border-color:var(--accent)}
+#hexIn{flex:1;min-width:220px}
+#target{min-width:280px;max-width:100%}
+#log{background:var(--bg);border:1px solid var(--line);border-radius:6px;height:380px;overflow:auto;padding:8px;font:12px/1.5 var(--mono);white-space:pre-wrap;word-break:break-all}
+.l.ok{color:var(--ok)}.l.warn{color:var(--warn)}.l.err{color:var(--err)}.l.rx{color:var(--rx)}.l.tx{color:var(--tx)}.l.svc{font-weight:700}
+.hint{font-size:12px;color:var(--muted);margin:4px 0 0}
+.stat{font:12px var(--mono);color:var(--muted)}
+.preview-wrap{background:#e9e9e4;border:1px solid var(--line);border-radius:6px;padding:10px;overflow:auto}
+#preview{display:block;background:#fff;image-rendering:pixelated;max-width:100%}
+</style>
+</head>
+<body>
+<main>
+<header>
+  <h1>BLE Printer Probe</h1>
+  <span class="badge" id="ver"></span>
+  <span class="env" id="env"></span>
+</header>
+
+<section class="card">
+  <h2>1. Connect</h2>
+  <div class="row">
+    <label for="namePrefix">Name prefix</label>
+    <input type="text" id="namePrefix" value="TP6">
+    <label><input type="checkbox" id="showAll"> Show all devices</label>
+  </div>
+  <label for="extra">Extra service UUIDs (optional, comma separated, short or full)</label>
+  <textarea id="extra" placeholder="e.g. ff00, 0000abcd-0000-1000-8000-00805f9b34fb"></textarea>
+  <div class="row" style="margin-top:10px;margin-bottom:0">
+    <button id="btnConnect">Connect</button>
+    <button id="btnDisconnect" class="ghost" disabled>Disconnect</button>
+    <button id="btnRescan" class="ghost" disabled>Re-list services</button>
+    <span class="stat" id="flow">credits: - | mtu: -</span>
+  </div>
+  <p class="hint">Close the phone app first (or turn off phone Bluetooth). These printers accept only one connection at a time.</p>
+</section>
+
+<section class="card">
+  <h2>2. Test print</h2>
+  <div class="row">
+    <label for="proto">Protocol</label>
+    <select id="proto">
+      <option value="escpos" selected>A: Plain ESC/POS raster</option>
+      <option value="phomemo">B: Phomemo style</option>
+      <option value="l11">C: Marklife / P15 (L11)</option>
+    </select>
+    <label for="imgHeight">Height (px)</label>
+    <select id="imgHeight">
+      <option value="64" selected>64 (small, safe)</option>
+      <option value="160">160</option>
+      <option value="260">260</option>
+    </select>
+  </div>
+  <div class="row">
+    <label for="imgWidth">Print width (px)</label>
+    <select id="imgWidth">
+      <option value="384" selected>384 (48 mm @ 203 dpi)</option>
+      <option value="576">576 (48 mm @ 300 dpi)</option>
+      <option value="448">448</option>
+      <option value="320">320</option>
+    </select>
+    <label for="density">Density</label>
+    <select id="density">
+      <option value="0">Don't send</option>
+      <option value="1">Light</option>
+      <option value="2" selected>Medium</option>
+      <option value="3">Dark</option>
+    </select>
+    <label><input type="checkbox" id="useCredits" checked> Use credit flow control</label>
+  </div>
+  <div class="row presets">
+    <button id="btnPrintTest" disabled style="background:var(--accent);color:#fff;border:0;font-weight:600">Print test image</button>
+    <button data-cmd="selftest" disabled>Self-test page</button>
+    <button data-cmd="feed" disabled>Feed paper</button>
+    <button data-cmd="battery" disabled>Query battery</button>
+    <button data-cmd="model" disabled>Query model</button>
+  </div>
+  <div class="preview-wrap"><canvas id="preview"></canvas></div>
+  <p class="hint">The diagonal line and the border show if the width is right. If the print comes out skewed or as noise, try the other width.</p>
+</section>
+
+<section class="card">
+  <h2>3. Raw send</h2>
+  <div class="row">
+    <label for="target">Target</label>
+    <select id="target" disabled><option>Connect first</option></select>
+  </div>
+  <div class="row">
+    <label>Chunk size (0 = auto from MTU)</label><input type="number" id="chunk" value="100" min="0" max="512">
+    <label><input type="checkbox" id="noResp" checked> Prefer write without response</label>
+  </div>
+  <div class="row presets" id="presets"></div>
+  <div class="row" style="margin-bottom:0">
+    <input type="text" id="hexIn" placeholder="Raw hex, e.g. 1b 40 0a 0a">
+    <button id="btnSend" disabled>Send hex</button>
+  </div>
+</section>
+
+<section class="card">
+  <h2>4. Log</h2>
+  <div class="row">
+    <button id="btnCopy" class="ghost">Copy log</button>
+    <button id="btnClear" class="ghost">Clear</button>
+    <label><input type="checkbox" id="hideHeartbeat" checked> Hide FF01 heartbeat</label>
+  </div>
+  <div id="log"></div>
+</section>
+</main>
+
+<script>
+const VERSION = '0.3.1';
+
+// Service UUIDs commonly used by cheap BLE thermal printers.
+// Web Bluetooth only exposes services that are declared up front, so the list matters.
+const KNOWN = [
+  ['ff00', 'Vendor FF00 (Marklife / P15 style)'],
+  ['ae30', 'Cat printer family (GB/GT/MX)'],
+  ['ae00', 'Cat printer variant'],
+  ['af30', 'Cat printer variant'],
+  ['ff10', 'Vendor FF10'],
+  ['ff80', 'Vendor FF80'],
+  ['fff0', 'Vendor FFF0'],
+  ['ffe0', 'HM-10 style UART'],
+  ['ffb0', 'Vendor FFB0'],
+  ['abf0', 'Vendor ABF0'],
+  ['18f0', 'Generic BLE printer (often ESC/POS)'],
+  ['fee7', 'Tencent vendor service'],
+  ['e7810a71-73ae-499d-8c15-faa9aef0c3f2', 'ESC/POS over BLE (common)'],
+  ['49535343-fe7d-4ae5-8fa9-9fafd205e455', 'Microchip ISSC transparent UART'],
+  ['6e400001-b5a3-f393-e0a9-e50e24dcca9e', 'Nordic UART'],
+  ['180a', 'Device Information'],
+  ['180f', 'Battery'],
+];
+
+const $ = s => document.querySelector(s);
+const logEl = $('#log');
+let device = null, server = null;
+const chars = [];
+
+// Flow control state (Marklife style): FF03 notifies "01 NN" = add NN credits, "02 LO HI" = MTU.
+const flow = { credits: null, mtu: null };
+
+$('#ver').textContent = 'v' + VERSION;
+document.title = 'BLE Printer Probe v' + VERSION;
+
+function toUuid(s) {
+  s = s.trim().toLowerCase().replace(/^0x/, '');
+  if (/^[0-9a-f]{4}$/.test(s) || /^[0-9a-f]{8}$/.test(s)) return BluetoothUUID.canonicalUUID(parseInt(s, 16));
+  return s;
+}
+function shortName(uuid) {
+  const m = uuid.match(/^0000([0-9a-f]{4})-0000-1000-8000-00805f9b34fb$/);
+  return m ? '0x' + m[1].toUpperCase() : uuid;
+}
+function bytesOf(v) {
+  if (v instanceof DataView) return new Uint8Array(v.buffer, v.byteOffset, v.byteLength);
+  return new Uint8Array(v);
+}
+function hex(v) { return [...bytesOf(v)].map(b => b.toString(16).padStart(2, '0')).join(' '); }
+function ascii(v) { return [...bytesOf(v)].map(b => (b >= 32 && b < 127) ? String.fromCharCode(b) : '.').join(''); }
+function parseHex(str) {
+  const clean = str.replace(/0x/gi, '').replace(/[^0-9a-f]/gi, '');
+  if (!clean.length) throw new Error('Empty');
+  if (clean.length % 2) throw new Error('Odd number of hex digits');
+  const out = new Uint8Array(clean.length / 2);
+  for (let i = 0; i < out.length; i++) out[i] = parseInt(clean.substr(i * 2, 2), 16);
+  return out;
+}
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+function ts() { const d = new Date(); return d.toTimeString().slice(0, 8) + '.' + String(d.getMilliseconds()).padStart(3, '0'); }
+function log(msg, cls = '') {
+  const el = document.createElement('div');
+  el.className = 'l ' + cls;
+  el.textContent = `[${ts()}] ${msg}`;
+  logEl.appendChild(el);
+  logEl.scrollTop = logEl.scrollHeight;
+}
+function updateFlow() {
+  $('#flow').textContent = `credits: ${flow.credits ?? '-'} | mtu: ${flow.mtu ?? '-'}`;
+}
+function concat(...parts) {
+  const arrs = parts.map(p => p instanceof Uint8Array ? p : Uint8Array.from(p));
+  const out = new Uint8Array(arrs.reduce((n, a) => n + a.length, 0));
+  let o = 0;
+  for (const a of arrs) { out.set(a, o); o += a.length; }
+  return out;
+}
+
+// ---------- Marklife / P15 style commands ----------
+const CMD = {
+  wakeup: () => new Uint8Array(15),                    // 15 x 0x00
+  enable: () => Uint8Array.of(0x10, 0xff, 0xf1, 0x02),
+  stop: () => Uint8Array.of(0x10, 0xff, 0xf1, 0x45),
+  density: d => Uint8Array.of(0x1f, 0x70, 0x02, d),
+  feedDots: n => Uint8Array.of(0x1b, 0x4a, n & 0xff),
+  selfTest: () => Uint8Array.of(0x1f, 0x40),
+  battery: () => Uint8Array.of(0x10, 0xff, 0x50, 0xf1),
+  model: () => Uint8Array.of(0x10, 0xff, 0x20, 0xf0),
+};
+
+// ---------- Cat printer protocol (kept for reference) ----------
+function crc8(data) {
+  let c = 0;
+  for (const b of data) {
+    c ^= b;
+    for (let i = 0; i < 8; i++) c = (c & 0x80) ? ((c << 1) ^ 0x07) & 0xff : (c << 1) & 0xff;
+  }
+  return c;
+}
+function catPacket(cmd, data) {
+  return Uint8Array.of(0x51, 0x78, cmd, 0x00, data.length & 0xff, (data.length >> 8) & 0xff, ...data, crc8(data), 0xff);
+}
+const enc = s => [...new TextEncoder().encode(s)];
+
+const PRESETS = [
+  ['Wakeup + enable', () => concat(CMD.wakeup(), CMD.enable())],
+  ['Stop job', () => CMD.stop()],
+  ['Cat: feed paper', () => catPacket(0xA1, [0x30, 0x00])],
+  ['ESC/POS: init + text', () => Uint8Array.from([0x1b, 0x40, ...enc('probe test\n'), 0x1b, 0x64, 0x03])],
+];
+const presetsEl = $('#presets');
+for (const [name, fn] of PRESETS) {
+  const b = document.createElement('button');
+  b.textContent = name;
+  b.disabled = true;
+  b.onclick = () => send(fn(), name);
+  presetsEl.appendChild(b);
+}
+
+// ---------- Test image ----------
+function buildTestCanvas(width) {
+  const height = parseInt($('#imgHeight').value) || 64;
+  if (height < 120) {
+    // Compact test: border, diagonal, short label, ruler
+    const cv = $('#preview');
+    cv.width = width; cv.height = height;
+    const g = cv.getContext('2d');
+    g.fillStyle = '#fff'; g.fillRect(0, 0, width, height);
+    g.fillStyle = '#000';
+    g.fillRect(0, 0, width, 3); g.fillRect(0, height - 3, width, 3);
+    g.fillRect(0, 0, 3, height); g.fillRect(width - 3, 0, 3, height);
+    g.lineWidth = 2; g.strokeStyle = '#000';
+    g.beginPath(); g.moveTo(3, 3); g.lineTo(width - 3, height - 3); g.stroke();
+    g.textBaseline = 'top';
+    g.font = `bold ${Math.round(height * 0.45)}px system-ui, sans-serif`;
+    g.fillText(`TP6-S ${width}`, 10, 8);
+    for (let x = 0; x < width; x += 50) g.fillRect(x, height - 14, 2, 11);
+    return cv;
+  }
+  const cv = $('#preview');
+  cv.width = width; cv.height = height;
+  const g = cv.getContext('2d');
+  g.fillStyle = '#fff'; g.fillRect(0, 0, width, height);
+  g.fillStyle = '#000';
+  // Border
+  g.fillRect(0, 0, width, 4); g.fillRect(0, height - 4, width, 4);
+  g.fillRect(0, 0, 4, height); g.fillRect(width - 4, 0, 4, height);
+  // Diagonal (shows skew if width is wrong)
+  g.lineWidth = 3; g.strokeStyle = '#000';
+  g.beginPath(); g.moveTo(4, 4); g.lineTo(width - 4, height - 4); g.stroke();
+  // Text
+  g.textBaseline = 'top';
+  g.font = `bold ${Math.round(width / 7)}px system-ui, sans-serif`;
+  g.fillText('TP6-S', 14, 14);
+  g.font = `bold ${Math.round(width / 16)}px system-ui, sans-serif`;
+  g.fillText(`TEST ${width}px  v${VERSION}`, 14, 14 + Math.round(width / 6));
+  // Checker strip
+  const sq = 8, y0 = height - 60;
+  for (let x = 4; x < width - 4; x += sq) for (let y = y0; y < y0 + 2 * sq * 2; y += sq)
+    if (((x / sq | 0) + (y / sq | 0)) % 2 === 0) g.fillRect(x, y, sq, sq);
+  // Ruler ticks every 50 px
+  for (let x = 0; x < width; x += 50) g.fillRect(x, height - 20, 2, 14);
+  return cv;
+}
+
+// Canvas -> 1bpp raster, MSB first, 1 = black.
+function canvasToRaster(cv) {
+  const w = cv.width, h = cv.height;
+  const px = cv.getContext('2d').getImageData(0, 0, w, h).data;
+  const bpr = Math.ceil(w / 8);
+  const out = new Uint8Array(bpr * h);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const i = (y * w + x) * 4;
+    const gray = 0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2];
+    if (gray < 128) out[y * bpr + (x >> 3)] |= 0x80 >> (x & 7);
+  }
+  return { bpr, h, data: out };
+}
+
+function rasterCommand(r) {
+  // GS v 0: 1D 76 30 00 wl wh hl hh data  (width in bytes)
+  return concat([0x1d, 0x76, 0x30, 0x00, r.bpr & 0xff, r.bpr >> 8, r.h & 0xff, r.h >> 8], r.data);
+}
+
+async function printTest() {
+  const width = parseInt($('#imgWidth').value);
+  const cv = buildTestCanvas(width);
+  const r = canvasToRaster(cv);
+  const d = parseInt($('#density').value);
+  const proto = $('#proto').value;
+  let job;
+  if (proto === 'l11') {
+    job = concat(
+      d ? CMD.density(d) : [],
+      CMD.wakeup(),
+      CMD.enable(),
+      rasterCommand(r),
+      CMD.feedDots(100),
+      CMD.stop()
+    );
+  } else if (proto === 'phomemo') {
+    // Phomemo M02 / T02 style: init, center, set density, raster, feed, end-of-job markers
+    job = concat(
+      [0x1b, 0x40],
+      [0x1b, 0x61, 0x01],
+      [0x1f, 0x11, 0x02, 0x04],
+      rasterCommand(r),
+      [0x1b, 0x64, 0x02],
+      [0x1b, 0x64, 0x02],
+      [0x1f, 0x11, 0x08],
+      [0x1f, 0x11, 0x0e],
+      [0x1f, 0x11, 0x07],
+      [0x1f, 0x11, 0x09]
+    );
+  } else {
+    // Plain ESC/POS: init, GS v 0 raster, feed 3 lines
+    job = concat([0x1b, 0x40], rasterCommand(r), [0x1b, 0x64, 0x03]);
+  }
+  log(`Test job [${proto}]: ${width}x${r.h}px, ${r.bpr} bytes/row, ${job.length} bytes total`);
+  await send(job, 'test image');
+}
+
+async function wrapped(name, body) {
+  await send(concat(CMD.wakeup(), CMD.enable(), body, CMD.stop()), name);
+}
+
+// ---------- BLE ----------
+function setConnected(on) {
+  $('#btnConnect').disabled = on;
+  $('#btnDisconnect').disabled = !on;
+  $('#btnRescan').disabled = !on;
+  $('#btnSend').disabled = !on;
+  $('#target').disabled = !on;
+  $('#btnPrintTest').disabled = !on;
+  document.querySelectorAll('.presets button').forEach(b => b.disabled = !on);
+}
+
+(function checkEnv() {
+  const ok = !!navigator.bluetooth && window.isSecureContext;
+  $('#env').textContent = ok ? 'Web Bluetooth available' : 'Web Bluetooth NOT available (use Chrome or Edge)';
+  $('#env').style.color = ok ? 'var(--ok)' : 'var(--err)';
+  log(`BLE Printer Probe v${VERSION}`);
+  log(`UA: ${navigator.userAgent}`);
+  if (!ok) log('Web Bluetooth not available. Open this file in Chrome or Edge on desktop.', 'err');
+  buildTestCanvas(parseInt($('#imgWidth').value));
+})();
+
+async function connect() {
+  try {
+    const extra = $('#extra').value.split(/[\s,]+/).filter(Boolean).map(toUuid);
+    const opts = { optionalServices: [...KNOWN.map(k => toUuid(k[0])), ...extra] };
+    const prefix = $('#namePrefix').value.trim();
+    if ($('#showAll').checked || !prefix) opts.acceptAllDevices = true;
+    else opts.filters = [{ namePrefix: prefix }, { namePrefix: 'eTP' }];
+
+    log('Opening device chooser...');
+    device = await navigator.bluetooth.requestDevice(opts);
+    log(`Selected: "${device.name}" (id ${device.id})`, 'ok');
+    // Assign (not addEventListener) so reconnecting the same device doesn't stack handlers.
+    device.ongattserverdisconnected = () => {
+      log('Device disconnected', 'warn');
+      flow.credits = null; flow.mtu = null; updateFlow();
+      setConnected(false);
+    };
+    flow.credits = null; flow.mtu = null; updateFlow();
+
+    log('Connecting GATT...');
+    server = await device.gatt.connect();
+    log('GATT connected', 'ok');
+    setConnected(true);
+    await enumerate();
+  } catch (e) {
+    log('Connect failed: ' + e.message, 'err');
+  }
+}
+
+function onNotify(c, value) {
+  const b = bytesOf(value);
+  const short = shortName(c.uuid);
+  if (short === '0xFF03' && b.length >= 2) {
+    if (b[0] === 0x01) { flow.credits = (flow.credits ?? 0) + b[1]; updateFlow(); }
+    else if (b[0] === 0x02 && b.length >= 3) { flow.mtu = b[1] | (b[2] << 8); updateFlow(); log(`MTU reported: ${flow.mtu}`, 'ok'); }
+    if (b[0] === 0x01 && b[1] === 0x01) return; // too noisy, credits shown in header
+  }
+  if (short === '0xFF01' && b[0] === 0x64 && b[1] === 0xff && $('#hideHeartbeat').checked) return;
+  log(`RX ${short}: ${hex(value)}  "${ascii(value)}"`, 'rx');
+}
+
+async function enumerate() {
+  chars.length = 0;
+  const labels = Object.fromEntries(KNOWN.map(k => [toUuid(k[0]), k[1]]));
+  let services;
+  try {
+    services = await server.getPrimaryServices();
+  } catch (e) {
+    log('No accessible services: ' + e.message, 'err');
+    fillTargets();
+    return;
+  }
+  log(`Found ${services.length} accessible service(s)`, 'ok');
+
+  for (const s of services) {
+    log(`SERVICE ${shortName(s.uuid)}  ${labels[s.uuid] || ''}`, 'svc');
+    let cs = [];
+    try { cs = await s.getCharacteristics(); }
+    catch (e) { log('  could not list characteristics: ' + e.message, 'err'); continue; }
+
+    for (const c of cs) {
+      const p = c.properties;
+      const props = ['read', 'write', 'writeWithoutResponse', 'notify', 'indicate'].filter(k => p[k]);
+      log(`  CHAR ${shortName(c.uuid)}  [${props.join(', ')}]`);
+      chars.push({ svc: s.uuid, uuid: c.uuid, props, ch: c });
+
+      if (p.read) {
+        try { const v = await c.readValue(); log(`    value: ${hex(v)}  "${ascii(v)}"`); }
+        catch (e) { log('    read failed: ' + e.message, 'warn'); }
+      }
+      if (p.notify || p.indicate) {
+        try {
+          c.oncharacteristicvaluechanged = ev => onNotify(c, ev.target.value);
+          await c.startNotifications();
+          log('    notifications on', 'ok');
+        } catch (e) { log('    notify failed: ' + e.message, 'warn'); }
+      }
+    }
+  }
+  fillTargets();
+}
+
+function fillTargets() {
+  const sel = $('#target');
+  sel.innerHTML = '';
+  const writable = chars.map((c, i) => ({ c, i })).filter(({ c }) => c.ch.properties.write || c.ch.properties.writeWithoutResponse);
+  if (!writable.length) { sel.innerHTML = '<option value="">No writable characteristic found</option>'; return; }
+  const prefer = ['ff02', 'ae01', '2af1', 'bef8d6c9-9c21-4c9e-b632-bd58c1009f9f'].map(toUuid);
+  let best = writable[0].i;
+  for (const p of prefer) { const hit = writable.find(({ c }) => c.uuid === p); if (hit) { best = hit.i; break; } }
+  for (const { c, i } of writable) {
+    const o = document.createElement('option');
+    o.value = i;
+    o.textContent = `${shortName(c.uuid)}  (svc ${shortName(c.svc)})  [${c.props.join(', ')}]`;
+    if (i === best) o.selected = true;
+    sel.appendChild(o);
+  }
+  log(`Default target: ${shortName(chars[best].uuid)}`);
+}
+
+// Wait for at least one credit. If none arrive within 1 s, force one (same as the vendor app).
+async function takeCredit() {
+  const t0 = performance.now();
+  while ((flow.credits ?? 0) <= 0) {
+    if (performance.now() - t0 > 1000) { log('No credits for 1 s, forcing 1', 'warn'); flow.credits = 1; break; }
+    await sleep(5);
+  }
+  flow.credits--; updateFlow();
+}
+
+let busy = false;
+async function send(bytes, label = 'hex') {
+  if (busy) { log('Busy, wait for the current send to finish', 'warn'); return; }
+  const entry = chars[$('#target').value];
+  if (!entry) { log('No target characteristic selected', 'err'); return; }
+  const p = entry.ch.properties;
+  const noResp = p.writeWithoutResponse && ($('#noResp').checked || !p.write);
+  let chunk = parseInt($('#chunk').value) || 0;
+  if (chunk <= 0) chunk = flow.mtu ? flow.mtu - 3 : 20;
+  const useCredits = $('#useCredits').checked && flow.credits !== null;
+  busy = true;
+  const t0 = performance.now();
+  try {
+    let packets = 0;
+    for (let i = 0; i < bytes.length; i += chunk) {
+      if (useCredits) await takeCredit();
+      const part = bytes.slice(i, i + chunk);
+      if (noResp) await entry.ch.writeValueWithoutResponse(part);
+      else await entry.ch.writeValueWithResponse(part);
+      packets++;
+      if (!useCredits) await sleep(30);
+    }
+    const preview = hex(bytes.slice(0, 48)) + (bytes.length > 48 ? ' ...' : '');
+    const ms = Math.round(performance.now() - t0);
+    log(`TX [${label}] -> ${shortName(entry.uuid)} (${bytes.length} B in ${packets} pkt of ${chunk}, ${useCredits ? 'credits' : 'timed'}, ${ms} ms): ${preview}`, 'tx');
+  } catch (e) {
+    log(`TX [${label}] failed: ${e.message}`, 'err');
+    if (chunk > 20) log('Tip: set chunk size to 20 and try again', 'warn');
+  } finally {
+    busy = false;
+  }
+}
+
+$('#btnConnect').onclick = connect;
+$('#btnDisconnect').onclick = () => { if (device?.gatt.connected) device.gatt.disconnect(); };
+$('#btnRescan').onclick = enumerate;
+$('#btnPrintTest').onclick = printTest;
+$('#imgWidth').onchange = () => buildTestCanvas(parseInt($('#imgWidth').value));
+$('#imgHeight').onchange = () => buildTestCanvas(parseInt($('#imgWidth').value));
+document.querySelectorAll('[data-cmd]').forEach(b => b.onclick = () => {
+  const c = b.dataset.cmd;
+  if (c === 'selftest') wrapped('self-test', CMD.selfTest());
+  if (c === 'feed') wrapped('feed 100 dots', CMD.feedDots(100));
+  if (c === 'battery') send(CMD.battery(), 'battery query');
+  if (c === 'model') send(CMD.model(), 'model query');
+});
+$('#btnSend').onclick = () => { try { send(parseHex($('#hexIn').value), 'raw'); } catch (e) { log('Bad hex: ' + e.message, 'err'); } };
+$('#btnCopy').onclick = async () => {
+  try { await navigator.clipboard.writeText(logEl.innerText); log('Log copied to clipboard', 'ok'); }
+  catch (e) { log('Copy failed, select the log text manually', 'warn'); }
+};
+$('#btnClear').onclick = () => { logEl.innerHTML = ''; };
+</script>
+</body>
+</html>

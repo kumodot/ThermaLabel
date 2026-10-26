@@ -1,0 +1,12 @@
+# Python
+.venv/
+__pycache__/
+
+# Never commit vendor APKs or decompiled code
+*.apk
+apk_work/
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini

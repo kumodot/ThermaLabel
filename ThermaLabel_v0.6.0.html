@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#f4f1ea">
+<meta name="description" content="Design labels and print them on small Bluetooth thermal printers from the browser.">
+<title>ThermaLabel v0.6.0</title>
+<link rel="stylesheet" href="css/fonts.css?v=0.6.0">
+<link rel="stylesheet" href="css/style.css?v=0.6.0">
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <div class="logo">
+      <svg viewBox="0 0 32 32" aria-hidden="true"><rect x="3" y="7" width="26" height="18" rx="5" fill="currentColor"/><circle cx="11" cy="15" r="3" fill="var(--bg)"/><circle cx="21" cy="15" r="3" fill="var(--bg)"/><circle cx="11" cy="15" r="1.3" fill="currentColor"/><circle cx="21" cy="15" r="1.3" fill="currentColor"/><rect x="9" y="22" width="14" height="6" rx="1" fill="var(--bg)" stroke="currentColor" stroke-width="1.5"/></svg>
+      <h1>ThermaLabel</h1>
+      <span class="ver" id="ver"></span>
+    </div>
+    <div class="conn">
+      <span class="chip"><span class="dot" id="connDot"></span> <span id="connText">Not connected</span></span>
+      <span class="chip" id="battChip" hidden></span>
+      <span class="chip warn" id="alertChip" hidden></span>
+      <button class="btn ghost" id="btnAbout">About</button>
+      <button class="btn" id="btnConnect">Connect printer</button>
+      <button class="btn ghost" id="btnDisconnect" hidden>Disconnect</button>
+    </div>
+  </header>
+
+  <div class="grid">
+    <!-- LEFT: editor -->
+    <section>
+      <div class="toolbar" id="toolbar">
+        <button class="tool primary" data-add="food" title="Add a food label preset to the active cell">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16v10H4z"/><path d="M7 11h6M7 14h4"/></svg>Food label</button>
+        <button class="tool" data-add="text"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 6h14M12 6v13"/></svg>Text</button>
+        <button class="tool" data-add="rect"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="6" width="16" height="12" rx="3"/></svg>Rectangle</button>
+        <button class="tool" data-add="ellipse"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="7"/></svg>Circle</button>
+        <button class="tool" data-add="triangle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 5l8 14H4z"/></svg>Triangle</button>
+        <button class="tool" data-add="line"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12h16"/></svg>Line</button>
+        <button class="tool" data-add="frame"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="2"/><rect x="6" y="8" width="12" height="8" rx="1" stroke-dasharray="2 2"/></svg>Frame</button>
+      </div>
+
+      <div class="stage">
+        <div class="paper" id="paper">
+          <div class="print-area" id="printArea">
+            <canvas id="preview"></canvas>
+            <div id="overlay"></div>
+          </div>
+        </div>
+      </div>
+      <div class="stage-foot">
+        <span id="sizeInfo"></span>
+        <span>Preview is the exact 1-bit image sent to the printer (576 dots, 300 dpi).</span>
+      </div>
+
+      <div class="card" style="margin-top:12px">
+        <h2>Quick fill <span style="text-transform:none;letter-spacing:0;font-weight:500">(active label)</span></h2>
+        <div class="qf" id="quickFill"></div>
+      </div>
+    </section>
+
+    <!-- RIGHT: panels -->
+    <aside>
+      <div class="card">
+        <h2>Print</h2>
+        <label class="field" style="margin-bottom:8px"><span>Printer</span><select id="printer"></select></label>
+        <div class="fields">
+          <label class="field"><span>Copies</span><input type="number" id="copies" min="1" max="50" value="1"></label>
+          <label class="field"><span>Darkness</span>
+            <select id="density"></select></label>
+        </div>
+        <div class="row" style="margin-top:10px">
+          <button class="btn big" id="btnPrint" disabled>Print</button>
+        </div>
+        <div class="progress"><div id="progressBar"></div></div>
+        <div class="row" style="margin-top:8px">
+          <button class="btn ghost sm" id="btnFeed" disabled>Feed paper</button>
+          <span class="hint" id="printInfo" style="margin:0"></span>
+        </div>
+        <div class="status-grid" id="statusGrid" hidden>
+          <div class="stat"><b>Battery</b><span id="stBatt">-</span></div>
+          <div class="stat"><b>Paper</b><span id="stPaper">-</span></div>
+          <div class="stat"><b>State</b><span id="stState">-</span></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Layout</h2>
+        <div class="fields three">
+          <label class="field"><span>Length (mm)</span><input type="number" id="lengthMm" min="10" max="200" step="1"></label>
+          <label class="field"><span>Columns</span><input type="number" id="cols" min="1" max="6" step="1"></label>
+          <label class="field"><span>Rows</span><input type="number" id="rows" min="1" max="10" step="1"></label>
+          <label class="field"><span>Gap (mm)</span><input type="number" id="gapMm" min="0" max="10" step="0.5"></label>
+          <label class="field"><span>Margin (mm)</span><input type="number" id="marginMm" min="0" max="10" step="0.5"></label>
+          <label class="field"><span>&nbsp;</span><label class="check"><input type="checkbox" id="cutLines"> Cut lines</label></label>
+        </div>
+        <div class="row" style="margin-top:10px">
+          <button class="btn ghost sm" id="btnCopyAll">Copy active label to all</button>
+          <button class="btn ghost sm" id="btnClearCell">Clear active label</button>
+        </div>
+        <p class="hint" id="printWidthHint"></p>
+      </div>
+
+      <div class="card">
+        <h2>Selected element</h2>
+        <div id="props"><div class="empty">Click an element on the label, or add one from the toolbar.</div></div>
+      </div>
+
+      <details class="card">
+        <summary>Layers (active label)</summary>
+        <div class="layers" id="layers"></div>
+      </details>
+
+      <details class="card">
+        <summary>Templates</summary>
+        <div class="row">
+          <input type="text" id="tplName" placeholder="Template name" style="flex:1;min-width:140px">
+          <button class="btn ghost sm" id="btnSaveTpl">Save</button>
+        </div>
+        <div class="row">
+          <select id="tplList" style="flex:1;min-width:140px"></select>
+          <button class="btn ghost sm" id="btnLoadTpl">Load</button>
+          <button class="btn ghost sm" id="btnDelTpl">Delete</button>
+        </div>
+        <div class="row">
+          <button class="btn ghost sm" id="btnExport">Export JSON</button>
+          <button class="btn ghost sm" id="btnImport">Import JSON</button>
+          <button class="btn ghost sm" id="btnReset">New design</button>
+          <input type="file" id="importFile" accept="application/json,.json" hidden>
+        </div>
+        <p class="hint">Templates are stored in this browser. Export to move them to another device.</p>
+      </details>
+
+      <details class="card">
+        <summary>Settings</summary>
+        <div class="fields">
+          <label class="field"><span>Date format</span>
+            <select id="dateFmt">
+              <option value="DD/MM">26/10</option>
+              <option value="DD/MM/YY">26/10/26</option>
+              <option value="MM/DD">10/26</option>
+              <option value="MM/DD/YY">10/26/26</option>
+              <option value="YYYY-MM-DD">2026-10-26</option>
+              <option value="DD MMM">26 Oct</option>
+              <option value="MMM DD">Oct 26</option>
+            </select></label>
+          <label class="field"><span>Transfer</span>
+            <select id="transfer"></select></label>
+          <label class="field"><span>Rate (paced)</span>
+            <select id="rate"><option value="4000">4 KB/s</option><option value="6000">6 KB/s</option><option value="10000">10 KB/s</option></select></label>
+          <label class="field"><span>Motor speed value</span>
+            <select id="speed"></select></label>
+        </div>
+        <p class="hint">Text tokens: <code>{today}</code>, <code>{+3}</code> (today + 3 days), <code>{-1}</code>, <code>{weekday}</code>.</p>
+      </details>
+
+      <details class="card">
+        <summary>Log</summary>
+        <div class="row" style="margin-bottom:8px">
+          <button class="btn ghost sm" id="btnCopyLog">Copy log</button>
+          <button class="btn ghost sm" id="btnClearLog">Clear</button>
+        </div>
+        <div id="log"></div>
+      </details>
+    </aside>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<div class="modal" id="about" hidden>
+  <div class="modal-box" role="dialog" aria-labelledby="aboutTitle">
+    <button class="modal-x" data-close aria-label="Close">&times;</button>
+    <h2 id="aboutTitle">ThermaLabel <span id="aboutVer"></span></h2>
+    <p>Design labels and print them on small Bluetooth thermal printers, straight from the browser.</p>
+    <p><b>Marcelo Souza / Kumodot.art - <span id="year">2026</span> // @Msouza3d</b></p>
+    <p><a href="https://ko-fi.com/msouza3d" target="_blank" rel="noopener">Support Marcelo Souza on Ko-fi</a></p>
+    <p>Shortcuts: <kbd>Arrows</kbd> nudge (<kbd>Shift</kbd> for 2 mm), <kbd>Delete</kbd> remove, <kbd>Ctrl</kbd>+<kbd>D</kbd> duplicate, <kbd>Esc</kbd> close.</p>
+    <p>Text tokens: <code>{today}</code>, <code>{+3}</code>, <code>{weekday}</code>.</p>
+    <p>License: MIT &middot; <a href="https://github.com/kumodot/ThermaLabel" target="_blank" rel="noopener">GitHub</a></p>
+    <p class="hint">Not affiliated with any printer brand.</p>
+  </div>
+</div>
+
+
+<script src="js/drivers/tp6s.js?v=0.6.0"></script>
+<script src="js/main.js?v=0.6.0"></script>
+</body>
+</html>
