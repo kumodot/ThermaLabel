@@ -5,12 +5,17 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#f4f1ea">
 <meta name="description" content="Design labels and print them on small Bluetooth thermal printers from the browser.">
-<title>ThermaLabel v0.6.0</title>
-<link rel="stylesheet" href="css/fonts.css?v=0.6.0">
-<link rel="stylesheet" href="css/style.css?v=0.6.0">
+<title>ThermaLabel v0.7.1</title>
+<link rel="stylesheet" href="css/fonts.css?v=0.7.1">
+<link rel="stylesheet" href="css/style.css?v=0.7.1">
 </head>
 <body>
 <div class="app">
+  <div class="ios-banner" id="iosBanner" hidden>
+    <span>On iPhone and iPad, Bluetooth printing works only in the free <b>Bluefy</b> browser. Open this page there.</span>
+    <a class="btn sm" href="https://apps.apple.com/app/id1492822055" target="_blank" rel="noopener">Get Bluefy</a>
+    <button class="btn ghost sm" id="btnCopyUrl">Copy link</button>
+  </div>
   <header class="top">
     <div class="logo">
       <svg viewBox="0 0 32 32" aria-hidden="true"><rect x="3" y="7" width="26" height="18" rx="5" fill="currentColor"/><circle cx="11" cy="15" r="3" fill="var(--bg)"/><circle cx="21" cy="15" r="3" fill="var(--bg)"/><circle cx="11" cy="15" r="1.3" fill="currentColor"/><circle cx="21" cy="15" r="1.3" fill="currentColor"/><rect x="9" y="22" width="14" height="6" rx="1" fill="var(--bg)" stroke="currentColor" stroke-width="1.5"/></svg>
@@ -183,7 +188,8 @@
 </div>
 
 
-<script src="js/drivers/tp6s.js?v=0.6.0"></script>
-<script src="js/main.js?v=0.6.0"></script>
+<script src="js/drivers/tp6s.js?v=0.7.1"></script>
+<script src="js/drivers/munbyn130b.js?v=0.7.1"></script>
+<script src="js/main.js?v=0.7.1"></script>
 </body>
 </html>

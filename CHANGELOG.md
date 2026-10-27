@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.7.1 (2026-10-26)
+
+- Each label remembers the size it was designed for. Changing columns, rows or printer rescales from that size,
+  and designs that don't match the current layout (older saves, templates made for another printer) fix
+  themselves when opened. Before, labels could end up wider than their cell after several layout changes.
+- MUNBYN 130B Bluetooth: uses the ISSC UART print service (the one MUNBYN's own web editor uses) instead of the
+  first writable service, which was a WeChat AirSync channel. The device picker now lists only MUNBYN printers.
+
+## 0.7.0 (2026-10-26)
+
+- **MUNBYN 130B over USB cable**: TSPL, 203 dpi, 4 x 6 in labels (101.5 x 152 mm), density 0-15, speed 1-6.
+  The browser hands the job to `tools/usb_bridge` (a small local Python bridge, 127.0.0.1:5758) which prints it
+  through the Windows RAW queue. The MUNBYN Label Printer app 1.2.0+ works as a fallback bridge (port 5757).
+- **MUNBYN 130B over Bluetooth (experimental)**.
+- **iPhone / iPad**: a banner explains that Bluetooth printing needs the free Bluefy browser, with a link and *Copy link*.
+- Switching printers keeps the design proportional and sets that printer's default label length.
+- Fix: preview for print widths that aren't a multiple of 8 dots.
+
 ## 0.6.0 (2026-10-26)
 
 - Renamed to **ThermaLabel**: a label maker for small Bluetooth thermal printers, not only the TP6-S.

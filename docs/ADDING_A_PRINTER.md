@@ -42,8 +42,12 @@ window.ThermaLabelDrivers.myprinter = {
 4. Measure transfer speed and note what makes the printer stall or power off in a `docs/TRANSFER_NOTES_<model>.md`.
 5. Add the model to the README "Where it works" table.
 
-## Planned: MUNBYN 130B
+## MUNBYN 130B (beta, `js/drivers/munbyn130b.js`)
 
-4" shipping label printer, 203 dpi (8 dots/mm, 832 dots per line on 104 mm). Probably TSPL. First step is
-checking whether its Bluetooth is BLE (works with Web Bluetooth) or classic SPP only (would need Web Serial,
-desktop Chrome only).
+4 in shipping label printer, 203 dpi, TSPL. Settings taken from a working USB TSPL app: `SIZE 101.5 mm,152 mm`,
+`GAP 2 mm,0 mm`, `SPEED 1-6` (default 3), `DENSITY 0-15` (default 3), `BITMAP` with bit 1 = white.
+Two driver entries share the TSPL builder: `munbyn130b_usb` posts the job to a local bridge
+(`tools/usb_bridge`, port 5758, or the MUNBYN Label Printer app 1.2.0+, port 5757) which writes it to the Windows
+RAW queue; `munbyn130b` (BLE, beta) writes to the Microchip ISSC transparent UART service
+(`49535343-fe7d-...`, write `49535343-8841-...`, notify `49535343-1e4d-...`), the same one MUNBYN's web editor uses.
+The printer also exposes a WeChat AirSync service (0xFEE7) that is not a print channel.

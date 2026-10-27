@@ -113,3 +113,9 @@ label.check{display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointe
 .modal-box a{color:var(--accent)}
 .modal-x{position:absolute;top:10px;right:12px;border:0;background:transparent;font-size:24px;line-height:1;cursor:pointer;color:var(--muted)}
 kbd{font:12px var(--mono);border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;padding:0 4px;background:var(--bg)}
+
+/* iOS hint */
+.ios-banner{display:flex;gap:8px;align-items:center;flex-wrap:wrap;background:var(--panel);border:1px solid var(--accent);border-radius:var(--radius);padding:10px 12px;margin-bottom:12px;font-size:13px}
+.ios-banner[hidden]{display:none}
+.ios-banner span{flex:1;min-width:200px}
+.ios-banner a.btn{text-decoration:none;display:inline-flex;align-items:center}

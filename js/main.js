@@ -6,6 +6,9 @@
  * exact 1-bit image (driver's own conversion) -> driver builds and sends the print job.
  *
  * CHANGELOG (newest first)
+ *   0.7.1  Each label remembers the size it was designed for; layout and printer changes rescale from it,
+ *          and mismatched designs (old saves, templates from another printer) fix themselves on load.
+ *   0.7.0  MUNBYN 130B drivers: USB cable through a local bridge, BLE (experimental). iOS Bluefy hint. Switching printers keeps the design proportional.
  *   0.6.0  Renamed to ThermaLabel. Printer driver selector, Auto transfer mode, About dialog,
  *          repo layout without a build step.
  *   0.5.2  Paced transfer waits no longer use setTimeout. Transfer diagnostics in the log.
@@ -14,9 +17,9 @@
  */
 'use strict';
 
-const APP_VERSION = '0.6.0';
+const APP_VERSION = '0.7.1';
 const DRIVERS = window.ThermaLabelDrivers || {};
-const PLANNED_DRIVERS = [['munbyn130b', 'MUNBYN 130B (coming soon)']];
+const PLANNED_DRIVERS = [];
 let driver = DRIVERS.tp6s;
 let DPM = driver.dotsPerMm;                       // dots per mm (12 = 300 dpi)
 let PRINT_W_MM = driver.dotsPerLine / DPM;        // printable width (48 mm on the TP6-S)
@@ -74,14 +77,44 @@ function defaultDoc() {
   const d = { page: { lengthMm: driver.defaultLengthMm, cols: 1, rows: 1, gapMm: 2, marginMm: 1, cutLines: true }, cells: [{ elements: [] }] };
   const c = cellRects(d.page)[0];
   d.cells[0].elements = foodPreset(c.w, c.h);
+  d.cells[0].size = { w: c.w, h: c.h };
+  d.widthMm = PRINT_W_MM;
+  return d;
+}
+
+// Scale a cell's elements from the size they were designed for to a new cell size.
+// Geometric mean for text and corners keeps round trips exact (2x2 and back restores the original).
+function scaleCell(cell, from, to) {
+  const sx = to.w / from.w, sy = to.h / from.h, sm = Math.sqrt(sx * sy);
+  const elements = cell.elements.map(el => {
+    const c = deep(el); c.x *= sx; c.w *= sx; c.y *= sy; c.h *= sy;
+    if (c.type === 'text') c.size *= sm;
+    if ('radius' in c) c.radius *= sm;
+    return c;
+  });
+  return { elements, size: { w: to.w, h: to.h } };
+}
+
+// Make every cell match the current layout. Designs saved by older versions, templates made for another
+// printer width, or anything that got out of step are rescaled from the size they were made for.
+function normalizeDoc(d) {
+  const rects = cellRects(d.page);
+  const legacyRects = cellRects(d.page, d.widthMm || 48);   // 0.5/0.6 saves were laid out on the 48 mm TP6-S
+  d.cells = rects.map((r, i) => {
+    const cell = d.cells[i] || { elements: deep((d.cells[0] || { elements: [] }).elements).map(e => Object.assign(e, { id: uid() })), size: d.cells[0]?.size };
+    const from = cell.size || legacyRects[i] || legacyRects[0];
+    if (Math.abs(from.w - r.w) < 0.01 && Math.abs(from.h - r.h) < 0.01) return { elements: cell.elements, size: { w: r.w, h: r.h } };
+    return scaleCell(cell, from, r);
+  });
+  d.widthMm = PRINT_W_MM;
   return d;
 }
 
 /* ---------- layout ---------- */
-function cellRects(p) {
+function cellRects(p, widthMm = PRINT_W_MM) {
   const cols = clamp(p.cols | 0, 1, 6), rows = clamp(p.rows | 0, 1, 10);
   const m = +p.marginMm || 0, g = +p.gapMm || 0;
-  const w = (PRINT_W_MM - 2 * m - (cols - 1) * g) / cols;
+  const w = (widthMm - 2 * m - (cols - 1) * g) / cols;
   const h = (p.lengthMm - 2 * m - (rows - 1) * g) / rows;
   const out = [];
   for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++)
@@ -366,7 +399,7 @@ function renderAll() {
   preview.width = Wd; preview.height = Hd;
   const pctx = preview.getContext('2d');
   const img = pctx.createImageData(Wd, Hd);
-  const bpr = Wd >> 3, mono = lastMono.mono, d = img.data;
+  const bpr = (Wd + 7) >> 3, mono = lastMono.mono, d = img.data;
   for (let y = 0; y < Hd; y++) for (let x = 0; x < Wd; x++) {
     const on = mono[y * bpr + (x >> 3)] & (0x80 >> (x & 7));
     const i = (y * Wd + x) * 4; const v = on ? 20 : 255;
@@ -630,8 +663,8 @@ function syncLayoutInputs() {
   for (const k of LAYOUT_KEYS) $('#' + k).value = doc.page[k];
   $('#cutLines').checked = !!doc.page.cutLines;
 }
-function applyLayout() {
-  const oldRects = cellRects(doc.page);
+function applyLayout(prevRects) {
+  const oldRects = Array.isArray(prevRects) ? prevRects : cellRects(doc.page);
   const np = deep(doc.page);
   np.lengthMm = clamp(parseFloat($('#lengthMm').value) || 30, 10, 200);
   np.cols = clamp(parseInt($('#cols').value) || 1, 1, 6);
@@ -641,23 +674,16 @@ function applyLayout() {
   np.cutLines = $('#cutLines').checked;
   const newRects = cellRects(np);
   if (newRects[0].w < 3 || newRects[0].h < 3) { toast('Labels would be too small'); syncLayoutInputs(); return; }
-  const o = oldRects[0], n = newRects[0], sx = n.w / o.w, sy = n.h / o.h;
-  // Geometric mean: going to 2x2 and back to 1x1 restores the exact original sizes
-  // (min(sx, sy) shrank text a bit more on every round trip).
-  const sm = Math.sqrt(sx * sy);
-  const scaleEl = el => {
-    const c = deep(el); c.x *= sx; c.w *= sx; c.y *= sy; c.h *= sy;
-    if (c.type === 'text') c.size *= sm;
-    if ('radius' in c) c.radius *= sm;
-    return c;
-  };
   const template = doc.cells[active] || doc.cells[0];
   const cells = [];
   for (let i = 0; i < newRects.length; i++) {
     const src = doc.cells[i] || template;
-    cells.push({ elements: src.elements.map(el => { const c = scaleEl(el); if (!doc.cells[i]) c.id = uid(); return c; }) });
+    const from = src.size || oldRects[i] || oldRects[0];   // the size this label was really designed for
+    const c = scaleCell(src, from, newRects[i]);
+    if (!doc.cells[i]) c.elements.forEach(e => { e.id = uid(); });
+    cells.push(c);
   }
-  doc.page = np; doc.cells = cells;
+  doc.page = np; doc.cells = cells; doc.widthMm = PRINT_W_MM;
   active = clamp(active, 0, cells.length - 1); selId = null;
   update();
 }
@@ -673,7 +699,7 @@ function refreshTplList() {
   sel.innerHTML = names.length ? names.map(n => `<option>${n.replace(/</g, '&lt;')}</option>`).join('') : '<option value="">No saved templates</option>';
 }
 function validDoc(d) { return d && d.page && Array.isArray(d.cells) && d.cells.every(c => Array.isArray(c.elements)); }
-function loadDoc(d) { doc = deep(d); active = 0; selId = null; syncLayoutInputs(); update(); }
+function loadDoc(d) { doc = normalizeDoc(deep(d)); active = 0; selId = null; syncLayoutInputs(); update(); }
 
 /* ---------- log, toast ---------- */
 const logEl = $('#log');
@@ -699,7 +725,7 @@ function setConnUI(on) {
   if (!on) { $('#battChip').hidden = true; $('#alertChip').hidden = true; }
 }
 function showStatus(s) {
-  const b = $('#battChip'); b.hidden = false;
+  const b = $('#battChip'); b.hidden = s.battery == null;
   b.textContent = `Battery ${s.battery ?? '?'}%${s.charging ? ' (charging)' : ''}`;
   b.className = 'chip' + ((s.battery ?? 100) < 20 ? ' warn' : '');
   $('#stBatt').textContent = (s.battery ?? '-') + '%';
@@ -725,12 +751,12 @@ function fillDriverControls() {
 }
 
 async function connect() {
-  if (!navigator.bluetooth) {
+  if (driver.needsBluetooth !== false && !navigator.bluetooth) {
     toast('This browser has no Web Bluetooth. Use Chrome or Edge (Android, Windows, macOS) or Bluefy on iPhone.');
     log('Web Bluetooth not available in this browser', 'err'); return;
   }
   try {
-    log('Opening device chooser...');
+    log(driver.needsBluetooth === false ? 'Connecting...' : 'Opening device chooser...');
     conn = await driver.connect({ log, onStatus: showStatus });
     conn.device.ongattserverdisconnected = () => { log('Printer disconnected', 'warn'); conn = null; setConnUI(false); };
     log(`Connected to ${conn.device.name}`, 'ok');
@@ -779,7 +805,7 @@ function init() {
   $('#ver').textContent = 'v' + APP_VERSION;
   document.title = `ThermaLabel v${APP_VERSION}`;
   const saved = store(STORE_CUR);
-  doc = validDoc(saved) ? saved : defaultDoc();
+  doc = validDoc(saved) ? normalizeDoc(saved) : defaultDoc();
   syncLayoutInputs();
   fillDriverControls();
   $('#dateFmt').value = settings.dateFmt;
@@ -788,6 +814,8 @@ function init() {
   refreshTplList();
   log(`ThermaLabel v${APP_VERSION}, driver ${driver.name} (protocol ${driver.protocolVersion})`);
   if (!navigator.bluetooth) log('This browser has no Web Bluetooth. Use Chrome/Edge, or Bluefy on iPhone.', 'warn');
+  const isIOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  if (isIOS && !navigator.bluetooth) $('#iosBanner').hidden = false;
   update();
   // re-render once the fonts are ready
   Promise.all(FONTS.map(f => document.fonts.load(`${f.weight} 20px "${f.family}"`))).then(() => update({ keepPanels: true })).catch(() => {});
@@ -796,15 +824,16 @@ function init() {
 $('#toolbar').addEventListener('click', e => {
   const b = e.target.closest('[data-add]'); if (!b) return;
   const c = cellRects(doc.page)[active], cell = doc.cells[active];
-  if (b.dataset.add === 'food') { cell.elements = foodPreset(c.w, c.h); selId = null; }
+  if (b.dataset.add === 'food') { cell.elements = foodPreset(c.w, c.h); cell.size = { w: c.w, h: c.h }; selId = null; }
   else { const el = newElement(b.dataset.add, c); cell.elements.push(el); selId = el.id; }
   update();
 });
-for (const k of LAYOUT_KEYS) $('#' + k).addEventListener('change', applyLayout);
-$('#cutLines').addEventListener('change', applyLayout);
+for (const k of LAYOUT_KEYS) $('#' + k).addEventListener('change', () => applyLayout());
+$('#cutLines').addEventListener('change', () => applyLayout());
 $('#btnCopyAll').onclick = () => {
   const src = doc.cells[active].elements;
-  doc.cells = doc.cells.map((c, i) => i === active ? c : { elements: src.map(e => Object.assign(deep(e), { id: uid() })) });
+  const size = doc.cells[active].size;
+  doc.cells = doc.cells.map((c, i) => i === active ? c : { elements: src.map(e => Object.assign(deep(e), { id: uid() })), size: size && { ...size } });
   toast('Copied to all labels'); update();
 };
 $('#btnClearCell').onclick = () => { doc.cells[active].elements = []; selId = null; update(); };
@@ -859,11 +888,19 @@ $('#btnClearLog').onclick = () => { logEl.innerHTML = ''; };
 window.addEventListener('resize', () => drawOverlay());
 $('#printer').onchange = e => {
   const d = DRIVERS[e.target.value]; if (!d) return;
+  const prev = cellRects(doc.page);   // measured with the old printer's width
   driver = d; settings.printer = d.id; DPM = d.dotsPerMm; PRINT_W_MM = d.dotsPerLine / DPM;
-  settings.density = d.defaultDensity; settings.speed = d.defaultSpeed; saveSettings();
-  fillDriverControls(); applyLayout();
+  settings.density = d.defaultDensity; settings.speed = d.defaultSpeed;
+  if (!d.transfers.some(t => t[0] === settings.transfer)) settings.transfer = d.transfers[0][0];
+  saveSettings();
+  $('#lengthMm').value = d.defaultLengthMm;
+  fillDriverControls(); applyLayout(prev);
 };
 $('#btnAbout').onclick = openAbout;
+$('#btnCopyUrl').onclick = async () => {
+  try { await navigator.clipboard.writeText(location.href); toast('Link copied. Paste it in Bluefy.'); }
+  catch { toast(location.href); }
+};
 $('#about').addEventListener('click', e => { if (e.target.id === 'about' || e.target.closest('[data-close]')) closeAbout(); });
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeAbout(); });
 
